@@ -30,6 +30,11 @@
   padding: 20px 18px 96px;
 }
 
+.phone-content--fullscreen {
+  padding: 0;
+  overflow: hidden;
+}
+
 @media (max-width: 420px) {
   .app-shell {
     padding: 18px 12px;
@@ -37,5 +42,9 @@
 
   .phone-content {
     padding: 16px 14px 88px;
+  }
+
+  .phone-content--fullscreen {
+    padding: 0;
   }
 }

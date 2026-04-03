@@ -26,19 +26,19 @@ function ExerciseCard({
     status === "done"
       ? {
           label: "Done",
-          background: "rgba(239,68,68,0.12)",
-          color: "#fca5a5",
+          background: "rgba(34,197,94,0.12)",
+          color: "#4ade80",
         }
       : status === "in-progress"
         ? {
             label: "In progress",
-            background: "rgba(250,204,21,0.12)",
-            color: "#fde68a",
+            background: "rgba(234,179,8,0.12)",
+            color: "#facc15",
           }
         : {
             label: "Ready",
-            background: "rgba(34,197,94,0.12)",
-            color: "#86efac",
+            background: "rgba(63,63,70,0.12)",
+            color: "#a1a1aa",
           };
 
   return (
@@ -59,17 +59,13 @@ function ExerciseCard({
       }}
     >
       <Stack spacing={expanded ? 1.25 : 1} sx={{ flex: 1 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1.5}>
+        <Stack direction="column" spacing={0.75} alignItems="flex-start">
           <Typography
+            variant="h6"
             sx={{
-              fontSize: { xs: "1.15rem", sm: "1.25rem" },
               fontWeight: 600,
               letterSpacing: "-0.02em",
               lineHeight: 1.2,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              pr: 1,
             }}
           >
             {name}
@@ -78,6 +74,7 @@ function ExerciseCard({
             label={statusStyles.label}
             size="small"
             sx={{
+              alignSelf: "flex-start",
               background: statusStyles.background,
               color: statusStyles.color,
               fontWeight: 600,
@@ -86,6 +83,7 @@ function ExerciseCard({
               px: 1.2,
               py: 0.35,
               height: "auto",
+              mt: '10px !important',
             }}
           />
         </Stack>
@@ -120,7 +118,7 @@ function ExerciseCard({
           endIcon={<PlayArrowRoundedIcon />}
           fullWidth
           sx={{
-            mt: expanded ? (showHistory ? 0.5 : 1) : 1,
+            mt: expanded ? (showHistory ? 0.5 : 1) : "20px !important",
             minHeight: 52,
             background: "linear-gradient(135deg, #8bd3a8 0%, #70c696 100%)",
             color: "#08110a",

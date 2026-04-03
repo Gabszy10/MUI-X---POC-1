@@ -5,10 +5,12 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import MobileAppLayout from "./layouts/MobileAppLayout";
-import History from "./pages/History";
+import ExerciseCategory from "./pages/ExerciseCategory";
+import ExerciseLibrary from "./pages/ExerciseLibrary";
 import LogSet from "./pages/LogSet";
 import Settings from "./pages/Settings";
 import Today from "./pages/Today";
+import Timer from "./pages/Timer";
 import appTheme from "./theme";
 
 function ExerciseRoute() {
@@ -26,8 +28,10 @@ function App() {
           <Routes>
             <Route element={<MobileAppLayout />}>
               <Route index element={<Today />} />
-              <Route path="history" element={<History />} />
+              <Route path="timer" element={<Timer />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="library" element={<ExerciseLibrary />} />
+              <Route path="library/:type" element={<ExerciseCategory />} />
               <Route path="exercise/:id" element={<ExerciseRoute />} />
             </Route>
           </Routes>

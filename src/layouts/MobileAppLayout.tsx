@@ -1,18 +1,18 @@
 import FitnessCenterRoundedIcon from "@mui/icons-material/FitnessCenterRounded";
-import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import { BottomNavigation, BottomNavigationAction, Box, Paper } from "@mui/material";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 const navItems = [
   { label: "Today", path: "/", icon: <FitnessCenterRoundedIcon /> },
-  { label: "History", path: "/history", icon: <HistoryRoundedIcon /> },
+  { label: "Timer", path: "/timer", icon: <TimerRoundedIcon /> },
   { label: "Settings", path: "/settings", icon: <SettingsRoundedIcon /> },
 ];
 
 function getNavigationValue(pathname: string) {
-  if (pathname.startsWith("/history")) {
-    return "/history";
+  if (pathname.startsWith("/timer")) {
+    return "/timer";
   }
   if (pathname.startsWith("/settings")) {
     return "/settings";
@@ -23,11 +23,12 @@ function getNavigationValue(pathname: string) {
 function MobileAppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const isTimer = location.pathname.startsWith("/timer");
 
   return (
     <Box className="phone-frame">
       <Paper className="phone-surface" elevation={0}>
-        <Box className="phone-content">
+        <Box className={`phone-content${isTimer ? " phone-content--fullscreen" : ""}`}>
           <Outlet />
         </Box>
 

@@ -1,0 +1,21 @@
+{
+  "push": [
+    { "id": 1, "name": "Bench Press" },
+    { "id": 2, "name": "Incline Bench Press" },
+    { "id": 3, "name": "Shoulder Press" }
+  ],
+  "pull": [
+    { "id": 4, "name": "Deadlift" },
+    { "id": 5, "name": "Lat Pulldown" },
+    { "id": 6, "name": "Barbell Row" }
+  ],
+  "legs": [
+    { "id": 7, "name": "Squat" },
+    { "id": 8, "name": "Leg Press" },
+    { "id": 9, "name": "RDL" }
+  ],
+  "cardio": [
+    { "id": 10, "name": "Treadmill" },
+    { "id": 11, "name": "Cycling" }
+  ]
+}

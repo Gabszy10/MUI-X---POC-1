@@ -16,13 +16,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import ExerciseCard from "../components/ExerciseCard";
-import { exercises } from "../data/exercises";
 import {
   getExerciseStatus,
   getLastPerformance,
   getPersonalRecord,
   getSetsForExerciseToday,
 } from "../utils/workouts";
+import {
+  getDefaultExercisesForType,
+  getShowTimer,
+  getTodaySchedule,
+} from "../utils/settings";
+import { getExerciseLibrary } from "../utils/exerciseLibrary";
 
 function formatLockDate(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
@@ -63,28 +68,50 @@ function Today() {
   const [stopwatchRunning, setStopwatchRunning] = useState(false);
   const [stopwatchMs, setStopwatchMs] = useState(0);
   const [showCurrentSets, setShowCurrentSets] = useState(true);
+  const [showTimer, setShowTimer] = useState(() => getShowTimer());
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todaySchedule = getTodaySchedule();
+  const items = useMemo(() => {
+    if (!todaySchedule) {
+      return [] as {
+        id: string;
+        name: string;
+        pr: ReturnType<typeof getPersonalRecord>;
+        last: ReturnType<typeof getLastPerformance>;
+        status: ExerciseStatus;
+        setsToday: ReturnType<typeof getSetsForExerciseToday>;
+      }[];
+    }
 
-  const items = exercises.map((exercise) => {
-    const savedStatus = getExerciseStatus(exercise.name, todayKey);
-    const setsToday = getSetsForExerciseToday(exercise.name);
-    const computedStatus: ExerciseStatus =
-      savedStatus === "done"
-        ? "done"
-        : setsToday.length > 0
-          ? "in-progress"
-          : "ready";
+    const library = getExerciseLibrary();
+    const available = library.filter((exercise) => exercise.type === todaySchedule.type);
+    const fallbackIds = getDefaultExercisesForType(todaySchedule.type);
+    const selectedIds =
+      todaySchedule.exercises.length > 0 ? todaySchedule.exercises : fallbackIds;
+    const selected = available.filter((exercise) => selectedIds.includes(exercise.id));
+    const finalSelection =
+      selected.length > 0 ? selected : available.slice(0, Math.min(2, available.length));
 
-    return {
-      id: exercise.id,
-      name: exercise.name,
-      day: exercise.day,
-      pr: getPersonalRecord(exercise.name),
-      last: getLastPerformance(exercise.name),
-      status: computedStatus,
-      setsToday,
-    };
-  });
+    return finalSelection.map((exercise) => {
+      const savedStatus = getExerciseStatus(exercise.name, todayKey);
+      const setsToday = getSetsForExerciseToday(exercise.name);
+      const computedStatus: ExerciseStatus =
+        savedStatus === "done"
+          ? "done"
+          : setsToday.length > 0
+            ? "in-progress"
+            : "ready";
+
+      return {
+        id: `lib-${exercise.id}`,
+        name: exercise.name,
+        pr: getPersonalRecord(exercise.name),
+        last: getLastPerformance(exercise.name),
+        status: computedStatus,
+        setsToday,
+      };
+    });
+  }, [todaySchedule, todayKey]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 1000);
@@ -101,9 +128,20 @@ function Today() {
     return () => window.clearInterval(interval);
   }, [stopwatchRunning]);
 
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "showTimer") {
+        setShowTimer(getShowTimer());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  const safeExerciseIndex = items.length > 0 ? exerciseIndex % items.length : 0;
   const activeExercise = useMemo(
-    () => items[exerciseIndex] ?? items[0],
-    [exerciseIndex, items],
+    () => items[safeExerciseIndex] ?? items[0],
+    [safeExerciseIndex, items],
   );
 
   const activeInProgress = items.find(
@@ -111,10 +149,16 @@ function Today() {
   );
 
   const handlePrevious = () => {
+    if (items.length === 0) {
+      return;
+    }
     setExerciseIndex((prev) => (prev - 1 + items.length) % items.length);
   };
 
   const handleNext = () => {
+    if (items.length === 0) {
+      return;
+    }
     setExerciseIndex((prev) => (prev + 1) % items.length);
   };
 
@@ -139,11 +183,22 @@ function Today() {
     setTouchStartX(null);
   };
 
-  const currentDay = `${items[0]?.day ?? "Pull"} day`;
+  const currentDay = todaySchedule
+    ? `${todaySchedule.type.charAt(0).toUpperCase()}${todaySchedule.type.slice(1)} Day`
+    : "No workout scheduled";
 
   const activeSets = useMemo(() => activeExercise?.setsToday ?? [], [activeExercise]);
   const nextSetNumber = activeSets.length + 1;
   const activeStatus: ExerciseStatus = activeExercise?.status ?? "ready";
+  const completedCount = items.filter((item) => item.status === "done").length;
+  const totalCount = items.length;
+  const progressRatio = totalCount > 0 ? completedCount / totalCount : 0;
+  const progressColor =
+    completedCount === 0
+      ? "#a1a1aa"
+      : completedCount < totalCount
+        ? "#facc15"
+        : "#4ade80";
 
   const formatShortDate = (dateString: string) => {
     const parsed = new Date(`${dateString}T00:00:00`);
@@ -192,7 +247,7 @@ function Today() {
         }}
       >
         <Stack direction="row" spacing={{ xs: 1.5, sm: 2.5 }} alignItems="stretch">
-          <Box sx={{ flex: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ mb: 1.6 }}>
               <Typography
                 sx={{
@@ -237,83 +292,132 @@ function Today() {
                 fontWeight: 700,
               }}
             />
-            <Typography variant="h1" sx={{ mt: 2 }}>
+            <Typography
+              variant="h1"
+              sx={{
+                mt: 2,
+                fontSize: "clamp(28px, 6vw, 40px)",
+                lineHeight: 1.15,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                textWrap: "balance",
+              }}
+            >
               {currentDay}
             </Typography>
           </Box>
 
-          <Box
-            sx={{
-              minWidth: { xs: 140, sm: 170 },
-              maxWidth: { xs: 150, sm: 180 },
-              borderRadius: "22px",
-              p: { xs: 1.6, sm: 2 },
-              background: "linear-gradient(180deg, rgba(12,16,20,0.9) 0%, rgba(8,10,12,0.95) 100%)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-            }}
-          >
-            <Box>
-              <Typography
-                sx={{
-                  fontSize: "0.85rem",
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                  color: "rgba(255,255,255,0.6)",
-                  fontWeight: 700,
-                }}
-              >
-                Rest timer
-              </Typography>
-              <Typography
-                sx={{
-                  mt: 1,
-                  fontSize: { xs: "1.65rem", sm: "2.1rem" },
-                  fontWeight: 800,
-                  letterSpacing: "-0.04em",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {formatStopwatch(stopwatchMs)}
-              </Typography>
-            </Box>
-
-            <Button
-              onClick={() => {
-                if (stopwatchRunning) {
-                  setStopwatchRunning(false);
-                  setStopwatchMs(0);
-                } else {
-                  setStopwatchRunning(true);
-                }
-              }}
-              variant="contained"
+          {showTimer ? (
+            <Box
               sx={{
-                mt: 2,
-                minHeight: 36,
-                borderRadius: "14px",
-                background: stopwatchRunning ? "rgba(255,255,255,0.12)" : "#f3f5f7",
-                color: stopwatchRunning ? "#f8fafc" : "#0b1013",
-                textTransform: "none",
-                fontWeight: 700,
-                "&:hover": {
-                  background: stopwatchRunning ? "rgba(255,255,255,0.2)" : "#ffffff",
-                },
+                flex: "0 0 38%",
+                maxWidth: "38%",
+                borderRadius: "20px",
+                px: 1.2,
+                py: 1.1,
+                background:
+                  "linear-gradient(180deg, rgba(12,16,20,0.9) 0%, rgba(8,10,12,0.95) 100%)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                minHeight: 120,
               }}
             >
-              {stopwatchRunning ? "Stop & reset" : "Start"}
-            </Button>
-          </Box>
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: "0.72rem",
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.6)",
+                    fontWeight: 700,
+                    textAlign: "center",
+                  }}
+                >
+                  Timer
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.6,
+                    fontSize: { xs: "1.35rem", sm: "1.5rem" },
+                    fontWeight: 800,
+                    letterSpacing: "-0.04em",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatStopwatch(stopwatchMs)}
+                </Typography>
+              </Box>
+
+              <Button
+                onClick={() => {
+                  if (stopwatchRunning) {
+                    setStopwatchRunning(false);
+                    setStopwatchMs(0);
+                  } else {
+                    setStopwatchRunning(true);
+                  }
+                }}
+                variant="contained"
+                sx={{
+                  mt: 1,
+                  minHeight: 30,
+                  borderRadius: "10px",
+                  background: stopwatchRunning ? "rgba(255,255,255,0.12)" : "#f3f5f7",
+                  color: stopwatchRunning ? "#f8fafc" : "#0b1013",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: "0.8rem",
+                  "&:hover": {
+                    background: stopwatchRunning ? "rgba(255,255,255,0.2)" : "#ffffff",
+                  },
+                }}
+              >
+                {stopwatchRunning ? "Stop & reset" : "Start"}
+              </Button>
+            </Box>
+          ) : null}
         </Stack>
       </Box>
 
       <Stack spacing={1.2}>
-        {items.length > 1 ? (
-          <Typography sx={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.45)", fontWeight: 600 }}>
-            Exercises
-          </Typography>
+        {items.length > 0 ? (
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography
+              sx={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.45)", fontWeight: 600 }}
+            >
+              Exercises
+            </Typography>
+            <Stack spacing={0.4} alignItems="flex-end">
+              <Typography sx={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.4)" }}>
+                Progress
+              </Typography>
+              <Typography sx={{ fontWeight: 700, color: progressColor }}>
+                {completedCount} / {totalCount}
+              </Typography>
+              <Box
+                sx={{
+                  width: 72,
+                  height: 4,
+                  borderRadius: "999px",
+                  background: "rgba(255,255,255,0.08)",
+                  overflow: "hidden",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: `${Math.round(progressRatio * 100)}%`,
+                    height: "100%",
+                    background: progressColor,
+                    transition: "width 200ms ease",
+                  }}
+                />
+              </Box>
+            </Stack>
+          </Stack>
         ) : null}
 
         <Stack direction="row" alignItems="center" spacing={1}>
@@ -341,7 +445,7 @@ function Today() {
             onTouchEnd={handleTouchEnd}
             sx={{ flex: 1, display: "flex", flexDirection: "column" }}
           >
-            {activeExercise && (
+            {activeExercise ? (
               <Stack spacing={1.4} sx={{ flex: 1 }}>
                 <ExerciseCard
                   name={activeExercise.name}
@@ -357,6 +461,19 @@ function Today() {
                   expanded={!showCurrentSets}
                 />
               </Stack>
+            ) : (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: "20px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <Typography sx={{ color: "rgba(255,255,255,0.6)" }}>
+                  No exercises scheduled for today.
+                </Typography>
+              </Box>
             )}
           </Box>
 
@@ -416,8 +533,17 @@ function Today() {
                 size="small"
                 sx={{
                   background:
-                    activeStatus === "done" ? "rgba(139,211,168,0.18)" : "rgba(139,211,168,0.12)",
-                  color: "#8bd3a8",
+                    activeStatus === "done"
+                      ? "rgba(34,197,94,0.12)"
+                      : activeStatus === "in-progress"
+                        ? "rgba(234,179,8,0.12)"
+                        : "rgba(63,63,70,0.12)",
+                  color:
+                    activeStatus === "done"
+                      ? "#4ade80"
+                      : activeStatus === "in-progress"
+                        ? "#facc15"
+                        : "#a1a1aa",
                   fontWeight: 700,
                 }}
               />
@@ -493,18 +619,6 @@ function Today() {
         </DialogActions>
       </Dialog>
 
-      <Box
-        aria-hidden
-        sx={{
-          height: 140,
-          background:
-            "linear-gradient(180deg, rgba(9,10,12,0) 0%, rgba(9,10,12,0.7) 60%, rgba(9,10,12,0.95) 100%)",
-          borderRadius: "24px",
-          filter: "blur(0px)",
-          mt: -1,
-          pointerEvents: "none",
-        }}
-      />
     </Stack>
   );
 }
