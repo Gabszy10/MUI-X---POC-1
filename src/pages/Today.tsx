@@ -21,6 +21,10 @@ import {
   getExerciseStatus,
   getLastPerformance,
   getPersonalRecord,
+  getSessionStartTimestamp,
+  getSessionLastActivityTimestamp,
+  setSessionLastActivityTimestamp,
+  endSession,
   getSetsForExerciseToday,
 } from "../utils/workouts";
 import {
@@ -49,6 +53,13 @@ function formatLockSeconds(date: Date) {
   return String(date.getSeconds()).padStart(2, "0");
 }
 
+function formatSessionElapsed(totalMs: number) {
+  const totalSeconds = Math.max(0, Math.floor(totalMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 function formatStopwatch(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -59,9 +70,14 @@ function formatStopwatch(ms: number) {
 
 type ExerciseStatus = "done" | "in-progress" | "ready";
 
+const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000;
+const AUTO_END_DELAY_MS = 12 * 60 * 1000;
+
 function Today() {
   const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
+  const [sessionStart, setSessionStart] = useState<number | null>(null);
+  const [lastActivity, setLastActivity] = useState<number | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [switchDialogOpen, setSwitchDialogOpen] = useState(false);
@@ -72,6 +88,13 @@ function Today() {
   const [showTimer, setShowTimer] = useState(() => getShowTimer());
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaySchedule = getTodaySchedule();
+  const sessionElapsedMs = sessionStart ? now.getTime() - sessionStart : 0;
+  const inactivityMs = lastActivity ? now.getTime() - lastActivity : 0;
+  const showInactivityPrompt =
+    Boolean(sessionStart && lastActivity) && inactivityMs >= INACTIVITY_THRESHOLD_MS;
+  const shouldAutoEnd =
+    Boolean(sessionStart && lastActivity) &&
+    inactivityMs >= INACTIVITY_THRESHOLD_MS + AUTO_END_DELAY_MS;
   const items = useMemo(() => {
     if (!todaySchedule) {
       return [] as {
@@ -115,9 +138,46 @@ function Today() {
   }, [todaySchedule, todayKey]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setNow(new Date()), 1000);
+    const interval = window.setInterval(() => {
+      const nextNow = new Date();
+      setNow(nextNow);
+      const nextStart = getSessionStartTimestamp(todayKey);
+      if (nextStart !== sessionStart) {
+        setSessionStart(nextStart);
+      }
+      const nextActivity = getSessionLastActivityTimestamp(todayKey);
+      if (nextActivity !== lastActivity) {
+        setLastActivity(nextActivity);
+      }
+    }, 1000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [todayKey, sessionStart, lastActivity]);
+
+  useEffect(() => {
+    setSessionStart(getSessionStartTimestamp(todayKey));
+    setLastActivity(getSessionLastActivityTimestamp(todayKey));
+  }, [todayKey]);
+
+  useEffect(() => {
+    if (!shouldAutoEnd) {
+      return;
+    }
+    endSession(todayKey, now.getTime());
+    setSessionStart(null);
+    setLastActivity(null);
+  }, [shouldAutoEnd, todayKey, now]);
+
+  const handleContinueSession = () => {
+    const next = Date.now();
+    setSessionLastActivityTimestamp(todayKey, next);
+    setLastActivity(next);
+  };
+
+  const handleEndSession = () => {
+    endSession(todayKey, Date.now());
+    setSessionStart(null);
+    setLastActivity(null);
+  };
 
   useEffect(() => {
     if (!stopwatchRunning) {
@@ -283,16 +343,69 @@ function Today() {
                   {formatLockSeconds(now)}
                 </Box>
               </Typography>
+              {sessionStart ? (
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.6,
+                    whiteSpace: "nowrap",
+                    fontSize: "0.78rem",
+                    color: "#a1a1aa",
+                  }}
+                >
+                  <Typography sx={{ fontSize: "inherit", color: "inherit" }}>
+                    Session {formatSessionElapsed(sessionElapsedMs)}
+                  </Typography>
+                  {showInactivityPrompt ? (
+                    <>
+                      <Typography sx={{ fontSize: "inherit", color: "inherit" }}>•</Typography>
+                      <Button
+                        size="small"
+                        onClick={handleContinueSession}
+                        sx={{
+                          p: 0,
+                          minWidth: "auto",
+                          fontSize: "inherit",
+                          textTransform: "none",
+                          color: "#e4e4e7",
+                          "&:hover": { background: "transparent", color: "#f4f4f5" },
+                        }}
+                      >
+                        Resume
+                      </Button>
+                      <Typography sx={{ fontSize: "inherit", color: "inherit" }}>•</Typography>
+                      <Button
+                        size="small"
+                        onClick={handleEndSession}
+                        sx={{
+                          p: 0,
+                          minWidth: "auto",
+                          fontSize: "inherit",
+                          textTransform: "none",
+                          color: "#f87171",
+                          "&:hover": { background: "transparent", color: "#fca5a5" },
+                        }}
+                      >
+                        End
+                      </Button>
+                    </>
+                  ) : null}
+                </Box>
+              ) : null}
             </Box>
-            <Chip
-              icon={<AutoAwesomeRoundedIcon />}
-              label="Today's Workout"
-              sx={{
-                background: "rgba(255,255,255,0.08)",
-                color: "#f8fafc",
-                fontWeight: 700,
-              }}
-            />
+            <Stack direction="row" alignItems="center" justifyContent="flex-start" sx={{ mt: 0.4 }}>
+              <Chip
+                icon={<AutoAwesomeRoundedIcon />}
+                label="Today's Workout"
+                sx={{
+                  background: "rgba(255,255,255,0.08)",
+                  color: "#f8fafc",
+                  fontWeight: 700,
+                }}
+              />
+            </Stack>
             <Typography
               variant="h1"
               sx={{
@@ -328,6 +441,7 @@ function Today() {
                 flexDirection: "column",
                 justifyContent: "space-between",
                 minHeight: 120,
+                ml: { xs: 5, sm: 5 },
               }}
             >
               <Box>

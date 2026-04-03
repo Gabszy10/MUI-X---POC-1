@@ -15,6 +15,9 @@ export type Workout = {
 const WORKOUTS_KEY = "workouts";
 const PRS_KEY = "workout-prs";
 const STATUS_KEY = "workout-status";
+const SESSION_START_KEY = "workout-session-start";
+const SESSION_LAST_ACTIVITY_KEY = "workout-session-last-activity";
+const SESSION_DURATION_KEY = "workout-session-duration";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -105,6 +108,103 @@ function getPrMap(): Record<string, StoredPr> {
   }
 }
 
+function getSessionStartMap(): Record<string, number> {
+  if (!isBrowser()) {
+    return {};
+  }
+  const stored = window.localStorage.getItem(SESSION_START_KEY);
+  if (!stored) {
+    return {};
+  }
+  try {
+    return JSON.parse(stored) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+function getSessionLastActivityMap(): Record<string, number> {
+  if (!isBrowser()) {
+    return {};
+  }
+  const stored = window.localStorage.getItem(SESSION_LAST_ACTIVITY_KEY);
+  if (!stored) {
+    return {};
+  }
+  try {
+    return JSON.parse(stored) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+function getSessionDurationMap(): Record<string, number> {
+  if (!isBrowser()) {
+    return {};
+  }
+  const stored = window.localStorage.getItem(SESSION_DURATION_KEY);
+  if (!stored) {
+    return {};
+  }
+  try {
+    return JSON.parse(stored) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+export function getSessionStartTimestamp(date: string) {
+  const map = getSessionStartMap();
+  return map[date] ?? null;
+}
+
+export function setSessionStartTimestamp(date: string, timestamp: number) {
+  if (!isBrowser()) {
+    return;
+  }
+  const next = { ...getSessionStartMap(), [date]: timestamp };
+  window.localStorage.setItem(SESSION_START_KEY, JSON.stringify(next));
+}
+
+export function getSessionLastActivityTimestamp(date: string) {
+  const map = getSessionLastActivityMap();
+  return map[date] ?? null;
+}
+
+export function setSessionLastActivityTimestamp(date: string, timestamp: number) {
+  if (!isBrowser()) {
+    return;
+  }
+  const next = { ...getSessionLastActivityMap(), [date]: timestamp };
+  window.localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, JSON.stringify(next));
+}
+
+export function getSessionDurationMs(date: string) {
+  const map = getSessionDurationMap();
+  return map[date] ?? null;
+}
+
+export function endSession(date: string, endedAt: number = Date.now()) {
+  if (!isBrowser()) {
+    return;
+  }
+  const start = getSessionStartTimestamp(date);
+  if (!start) {
+    return;
+  }
+  const duration = Math.max(0, endedAt - start);
+  const nextDuration = { ...getSessionDurationMap(), [date]: duration };
+  window.localStorage.setItem(SESSION_DURATION_KEY, JSON.stringify(nextDuration));
+
+  const remainingStarts = { ...getSessionStartMap() };
+  delete remainingStarts[date];
+  window.localStorage.setItem(SESSION_START_KEY, JSON.stringify(remainingStarts));
+
+  const remainingActivity = { ...getSessionLastActivityMap() };
+  delete remainingActivity[date];
+  window.localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, JSON.stringify(remainingActivity));
+}
+
 export function setPersonalRecord(exerciseName: string, date: string, setIndex: number) {
   if (!isBrowser()) {
     return;
@@ -132,6 +232,10 @@ export function getPersonalRecord(exerciseName: string) {
 export function saveWorkout(exercise: string, set: LoggedSet) {
   const workouts = getWorkouts();
   const date = todayKey();
+  if (!getSessionStartTimestamp(date)) {
+    setSessionStartTimestamp(date, Date.now());
+  }
+  setSessionLastActivityTimestamp(date, Date.now());
   const existingIndex = workouts.findIndex(
     (workout) => workout.date === date && workout.exercise === exercise,
   );
