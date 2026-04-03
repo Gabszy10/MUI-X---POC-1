@@ -22,6 +22,7 @@ function ExerciseCard({
   showHistory = true,
   expanded = false,
 }: ExerciseCardProps) {
+  const isActive = status === "in-progress";
   const statusStyles =
     status === "done"
       ? {
@@ -49,13 +50,16 @@ function ExerciseCard({
         background:
           "linear-gradient(180deg, rgba(20,24,29,0.98) 0%, rgba(13,16,20,0.98) 100%)",
         border: "1px solid rgba(255,255,255,0.06)",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.22)",
+        boxShadow: isActive
+          ? "0 0 12px rgba(34,197,94,0.16), 0 20px 40px rgba(0,0,0,0.22)"
+          : "0 20px 40px rgba(0,0,0,0.22)",
         minHeight: expanded ? 320 : "auto",
         maxHeight: expanded ? "none" : "auto",
         flex: expanded ? 1 : "initial",
         display: "flex",
         flexDirection: "column",
-        transition: "all 300ms ease-in-out",
+        transform: expanded ? "translateY(0px)" : "translateY(6px)",
+        transition: "all 260ms ease-in-out",
       }}
     >
       <Stack spacing={expanded ? 1.25 : 1} sx={{ flex: 1 }}>
@@ -84,6 +88,7 @@ function ExerciseCard({
               py: 0.35,
               height: "auto",
               mt: '10px !important',
+              transition: "all 220ms ease-in-out",
             }}
           />
         </Stack>
@@ -112,24 +117,48 @@ function ExerciseCard({
 
         {expanded ? <Box sx={{ flex: 1 }} /> : null}
 
-        <Button
-          variant="contained"
-          onClick={onStart}
-          endIcon={<PlayArrowRoundedIcon />}
-          fullWidth
-          sx={{
-            mt: expanded ? (showHistory ? 0.5 : 1) : "20px !important",
-            minHeight: 52,
-            background: "linear-gradient(135deg, #8bd3a8 0%, #70c696 100%)",
-            color: "#08110a",
-            py: 1.4,
-            "&:hover": {
-              background: "linear-gradient(135deg, #9be0b4 0%, #7ed0a1 100%)",
-            },
-          }}
-        >
-          Start
-        </Button>
+        {status === "done" ? (
+          <Box
+            sx={{
+              mt: expanded ? (showHistory ? 0.5 : 1) : "20px !important",
+              minHeight: 52,
+              borderRadius: "16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(34,197,94,0.12)",
+              color: "rgba(74,222,128,0.85)",
+              fontWeight: 700,
+            }}
+          >
+            ✓ Completed
+          </Box>
+        ) : (
+          <Button
+            variant="contained"
+            onClick={onStart}
+            endIcon={<PlayArrowRoundedIcon />}
+            fullWidth
+            sx={{
+              mt: expanded ? (showHistory ? 0.5 : 1) : "20px !important",
+              minHeight: 52,
+              background:
+                status === "in-progress"
+                  ? "linear-gradient(135deg, #facc15 0%, #eab308 100%)"
+                  : "#27272a",
+              color: status === "in-progress" ? "#2a1b00" : "#f8fafc",
+              py: 1.4,
+              "&:hover": {
+                background:
+                  status === "in-progress"
+                    ? "linear-gradient(135deg, #fde047 0%, #facc15 100%)"
+                    : "#3f3f46",
+              },
+            }}
+          >
+            {status === "in-progress" ? "Continue" : "Start"}
+          </Button>
+        )}
 
         {expanded ? <Box sx={{ mt: 0.5 }} /> : null}
       </Stack>

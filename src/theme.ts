@@ -51,6 +51,22 @@ const appTheme = createTheme({
         root: {
           borderRadius: 18,
           minHeight: 48,
+          transform: "scale(1)",
+          transition: "transform 120ms ease-out",
+          "&:not(.Mui-disabled):active": {
+            transform: "scale(0.97)",
+          },
+        },
+      },
+    },
+    MuiToggleButton: {
+      styleOverrides: {
+        root: {
+          transform: "scale(1)",
+          transition: "transform 120ms ease-out",
+          "&:not(.Mui-disabled):active": {
+            transform: "scale(0.97)",
+          },
         },
       },
     },
@@ -58,6 +74,20 @@ const appTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 24,
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          transition: "box-shadow 160ms ease, transform 160ms ease, border-color 160ms ease",
+          "&.Mui-focused": {
+            boxShadow: "0 0 10px rgba(34,197,94,0.16)",
+            transform: "scale(1.01)",
+          },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+            borderColor: "rgba(34,197,94,0.6)",
+          },
         },
       },
     },

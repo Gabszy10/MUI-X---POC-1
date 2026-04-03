@@ -4,16 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 const pulse = keyframes`
   0% {
-    text-shadow: 0 0 0 rgba(74, 222, 128, 0.0);
-    opacity: 0.92;
-  }
-  50% {
-    text-shadow: 0 0 18px rgba(74, 222, 128, 0.18);
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.08);
     opacity: 1;
   }
+  50% {
+    text-shadow: 0 0 12px rgba(74, 222, 128, 0.14);
+    opacity: 0.9;
+  }
   100% {
-    text-shadow: 0 0 0 rgba(74, 222, 128, 0.0);
-    opacity: 0.92;
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.08);
+    opacity: 1;
   }
 `;
 
@@ -88,8 +88,11 @@ function Timer() {
             fontWeight: 700,
             letterSpacing: "0.04em",
             color: running ? "#e5e7eb" : "rgba(229,231,235,0.75)",
-            animation: running ? `${pulse} 1.6s ease-in-out infinite` : "none",
+            animation: running ? `${pulse} 1.7s ease-in-out infinite` : "none",
             transition: "color 200ms ease",
+            display: "inline-block",
+            borderRadius: "16px",
+            boxShadow: running ? "0 0 12px rgba(34,197,94,0.16)" : "none",
           }}
         >
           {timerText}

@@ -196,6 +196,17 @@ function SetLogger({
                   fontSize: "1.8rem",
                   fontWeight: 800,
                   lineHeight: 1.1,
+                  paddingLeft: 0,
+                  paddingRight: 0,
+                  paddingTop: "10px",
+                  paddingBottom: "10px",
+                },
+                "& input[type=number]": {
+                  MozAppearance: "textfield",
+                },
+                "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button": {
+                  WebkitAppearance: "none",
+                  margin: 0,
                 },
                 "& .MuiOutlinedInput-root": {
                   borderRadius: "16px",

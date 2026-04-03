@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Chip,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -320,6 +321,9 @@ function Today() {
                 background:
                   "linear-gradient(180deg, rgba(12,16,20,0.9) 0%, rgba(8,10,12,0.95) 100%)",
                 border: "1px solid rgba(255,255,255,0.08)",
+                boxShadow: stopwatchRunning
+                  ? "0 0 10px rgba(34,197,94,0.16)"
+                  : "none",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
@@ -513,66 +517,71 @@ function Today() {
           />
         </Stack>
 
-        {showCurrentSets && (
+        <Collapse in={showCurrentSets} timeout={260} sx={{ width: "100%" }}>
           <Box
             sx={{
               p: 2,
               borderRadius: "24px",
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.06)",
+              transition: "all 240ms ease-in-out",
+              transform: showCurrentSets ? "translateY(0px)" : "translateY(-6px)",
+              opacity: showCurrentSets ? 1 : 0,
             }}
           >
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography sx={{ mt: 0.6, color: "rgba(255,255,255,0.58)" }}>
-                  {activeExercise ? activeExercise.name : "Select an exercise"}
-                </Typography>
-              </Box>
-              <Chip
-                label={activeStatus === "done" ? "Done" : `Set ${nextSetNumber}`}
-                size="small"
-                sx={{
-                  background:
-                    activeStatus === "done"
-                      ? "rgba(34,197,94,0.12)"
-                      : activeStatus === "in-progress"
-                        ? "rgba(234,179,8,0.12)"
-                        : "rgba(63,63,70,0.12)",
-                  color:
-                    activeStatus === "done"
-                      ? "#4ade80"
-                      : activeStatus === "in-progress"
-                        ? "#facc15"
-                        : "#a1a1aa",
-                  fontWeight: 700,
-                }}
-              />
-            </Stack>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography sx={{ mt: 0.6, color: "rgba(255,255,255,0.58)" }}>
+                    {activeExercise ? activeExercise.name : "Select an exercise"}
+                  </Typography>
+                </Box>
+                <Chip
+                  label={activeStatus === "done" ? "Done" : `Set ${nextSetNumber}`}
+                  size="small"
+                  sx={{
+                    background:
+                      activeStatus === "done"
+                        ? "rgba(34,197,94,0.12)"
+                        : activeStatus === "in-progress"
+                          ? "rgba(234,179,8,0.12)"
+                          : "rgba(63,63,70,0.12)",
+                    color:
+                      activeStatus === "done"
+                        ? "#4ade80"
+                        : activeStatus === "in-progress"
+                          ? "#facc15"
+                          : "#a1a1aa",
+                    fontWeight: 700,
+                    transition: "all 220ms ease-in-out",
+                  }}
+                />
+              </Stack>
 
-            <Stack spacing={0.8} sx={{ mt: 1.5 }}>
-              {activeSets.length === 0 ? (
-                <Typography sx={{ color: "rgba(255,255,255,0.56)" }}>
-                  No sets logged yet today.
-                </Typography>
-              ) : (
-                activeSets.map((set, index) => (
-                  <Box
-                    key={`${set.weight}-${set.reps}-${index}`}
-                    sx={{
-                      p: 1.1,
-                      borderRadius: "16px",
-                      background: "rgba(255,255,255,0.03)",
-                    }}
-                  >
-                    <Typography>
-                      Set {index + 1}: {set.weight}{set.unit} x {set.reps}
-                    </Typography>
-                  </Box>
-                ))
-              )}
-            </Stack>
+              <Stack spacing={0.8} sx={{ mt: 1.5 }}>
+                {activeSets.length === 0 ? (
+                  <Typography sx={{ color: "rgba(255,255,255,0.56)" }}>
+                    No sets logged yet today.
+                  </Typography>
+                ) : (
+                  activeSets.map((set, index) => (
+                    <Box
+                      key={`${set.weight}-${set.reps}-${index}`}
+                      sx={{
+                        p: 1.1,
+                        borderRadius: "16px",
+                        background: "rgba(255,255,255,0.03)",
+                        transition: "all 220ms ease-in-out",
+                      }}
+                    >
+                      <Typography>
+                        Set {index + 1}: {set.weight}{set.unit} x {set.reps}
+                      </Typography>
+                    </Box>
+                  ))
+                )}
+              </Stack>
           </Box>
-        )}
+        </Collapse>
       </Stack>
 
       <Dialog

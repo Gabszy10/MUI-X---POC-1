@@ -51,9 +51,17 @@ function MobileAppLayout() {
               "& .MuiBottomNavigationAction-root": {
                 color: "rgba(255,255,255,0.48)",
                 minWidth: 0,
+                transition: "all 240ms ease-in-out",
               },
               "& .Mui-selected": {
                 color: "#8bd3a8",
+                transform: "translateY(-4px)",
+              },
+              "& .MuiBottomNavigationAction-label": {
+                transition: "all 240ms ease-in-out",
+              },
+              "& .MuiBottomNavigationAction-root svg": {
+                transition: "all 240ms ease-in-out",
               },
             }}
           >
