@@ -63,10 +63,6 @@ function LogSet() {
     }
   }, [focus]);
 
-  const handleAdjustWeight = (change: number) => {
-    setWeight((current) => Math.max(0, Number((current + change).toFixed(1))));
-  };
-
   const handleAdjustReps = (change: number) => {
     setReps((current) => Math.max(1, current + change));
   };
@@ -128,7 +124,7 @@ function LogSet() {
         rir={rir}
         unit={unit}
         previousSets={previousSets}
-        onAdjustWeight={handleAdjustWeight}
+        onSetWeight={setWeight}
         onAdjustReps={handleAdjustReps}
         onSelectRir={setRir}
         onSelectUnit={setUnit}

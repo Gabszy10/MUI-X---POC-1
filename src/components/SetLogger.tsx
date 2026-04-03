@@ -5,10 +5,12 @@ import {
   Button,
   Paper,
   Stack,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
+import { useState } from "react";
 
 import type { LoggedSet } from "../utils/workouts";
 
@@ -20,7 +22,7 @@ type SetLoggerProps = {
   rir: number;
   unit: "kg" | "lb";
   previousSets: LoggedSet[];
-  onAdjustWeight: (change: number) => void;
+  onSetWeight: (value: number) => void;
   onAdjustReps: (change: number) => void;
   onSelectRir: (value: number) => void;
   onSelectUnit: (value: "kg" | "lb") => void;
@@ -101,12 +103,34 @@ function SetLogger({
   rir,
   unit,
   previousSets,
-  onAdjustWeight,
+  onSetWeight,
   onAdjustReps,
   onSelectRir,
   onSelectUnit,
   onSave,
 }: SetLoggerProps) {
+  const [weightDraft, setWeightDraft] = useState(String(weight));
+  const quickWeights = [
+    Math.max(0, Number((weight - 5).toFixed(1))),
+    Number(weight.toFixed(1)),
+    Number((weight + 5).toFixed(1)),
+    Number((weight + 10).toFixed(1)),
+  ].filter((value, index, array) => array.indexOf(value) === index);
+
+  const applyWeight = (nextValue: number) => {
+    const clamped = Math.max(0, Number(nextValue.toFixed(1)));
+    onSetWeight(clamped);
+    setWeightDraft(String(clamped));
+  };
+
+  const handleWeightInput = (value: string) => {
+    setWeightDraft(value);
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      applyWeight(parsed);
+    }
+  };
+
   return (
     <Stack spacing={2}>
       <Box sx={{ textAlign: "center" }}>
@@ -121,13 +145,114 @@ function SetLogger({
         </Typography>
       </Box>
 
-      <ControlBlock
-        label="Weight"
-        value={weight}
-        suffix={unit}
-        onDecrease={() => onAdjustWeight(-2.5)}
-        onIncrease={() => onAdjustWeight(2.5)}
-      />
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          borderRadius: "24px",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <Typography sx={{ color: "rgba(255,255,255,0.58)", textAlign: "center" }}>
+          Weight
+        </Typography>
+        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mt: 1.3 }}>
+          <Button
+            onClick={() => {
+              const next = Math.max(0, Number((weight - 2.5).toFixed(1)));
+              onSetWeight(next);
+              setWeightDraft(String(next));
+            }}
+            variant="outlined"
+            sx={{
+              minWidth: 56,
+              width: 56,
+              borderColor: "rgba(255,255,255,0.12)",
+              color: "#f8fafc",
+            }}
+          >
+            <RemoveRoundedIcon />
+          </Button>
+          <Box sx={{ flex: 1 }}>
+            <TextField
+              value={weightDraft}
+              onChange={(event) => handleWeightInput(event.target.value)}
+              onFocus={(event) => event.target.select()}
+              onBlur={() => {
+                const parsed = Number(weightDraft);
+                if (Number.isNaN(parsed)) {
+                  setWeightDraft(String(weight));
+                  return;
+                }
+                applyWeight(parsed);
+              }}
+              type="number"
+              fullWidth
+              inputProps={{ inputMode: "decimal", min: 0, step: 0.5 }}
+              sx={{
+                "& .MuiInputBase-input": {
+                  textAlign: "center",
+                  fontSize: "1.8rem",
+                  fontWeight: 800,
+                  lineHeight: 1.1,
+                },
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "16px",
+                  background: "rgba(0,0,0,0.2)",
+                },
+              }}
+            />
+            <Typography
+              sx={{
+                mt: 0.6,
+                textAlign: "center",
+                fontSize: "0.85rem",
+                color: "rgba(255,255,255,0.55)",
+              }}
+            >
+              {unit}
+            </Typography>
+          </Box>
+          <Button
+            onClick={() => {
+              const next = Number((weight + 2.5).toFixed(1));
+              onSetWeight(next);
+              setWeightDraft(String(next));
+            }}
+            variant="outlined"
+            sx={{
+              minWidth: 56,
+              width: 56,
+              borderColor: "rgba(255,255,255,0.12)",
+              color: "#f8fafc",
+            }}
+          >
+            <AddRoundedIcon />
+          </Button>
+        </Stack>
+        <Stack direction="row" spacing={1} justifyContent="center" sx={{ mt: 1.4 }}>
+          {quickWeights.map((preset) => (
+            <Button
+              key={preset}
+              onClick={() => applyWeight(preset)}
+              sx={{
+                borderRadius: "12px",
+                textTransform: "none",
+                fontWeight: 700,
+                background: "rgba(255,255,255,0.06)",
+                color: "#f8fafc",
+                px: 2,
+                "&:hover": {
+                  background: "rgba(255,255,255,0.12)",
+                },
+              }}
+            >
+              {preset}
+            </Button>
+          ))}
+        </Stack>
+      </Paper>
 
       <Paper
         elevation={0}

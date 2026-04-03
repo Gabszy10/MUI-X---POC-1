@@ -79,6 +79,10 @@ function ExerciseCategory() {
     if (draft.id === null) {
       return;
     }
+    const confirmed = window.confirm("Are you sure you want to delete this exercise?");
+    if (!confirmed) {
+      return;
+    }
     const nextLibrary = library.filter((entry) => entry.id !== draft.id);
     setLibrary(nextLibrary);
     saveExerciseLibrary(nextLibrary);
@@ -187,7 +191,7 @@ function ExerciseCategory() {
         }}
       >
         <DialogTitle sx={{ fontWeight: 800 }}>
-          {draft.id === null ? "Add exercise" : "Edit exercise"}
+          {draft.id === null ? "Add Exercise" : "Edit Exercise"}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 0.5 }}>
