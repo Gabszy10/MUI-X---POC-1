@@ -14,6 +14,8 @@ export type DaySchedule = {
 };
 
 const SHOW_TIMER_KEY = "showTimer";
+const SHOW_SESSION_KEY = "showSession";
+const SHOW_RIR_KEY = "showRir";
 const WEEKLY_SCHEDULE_KEY = "weeklySchedule";
 
 const defaultSchedule: Record<Weekday, DaySchedule> = {
@@ -34,14 +36,51 @@ export function getShowTimer(): boolean {
   return stored === "true";
 }
 
+export function getShowSession(): boolean {
+  const stored = window.localStorage.getItem(SHOW_SESSION_KEY);
+  if (stored === null) {
+    return true;
+  }
+  return stored === "true";
+}
+
+export function getShowRir(): boolean {
+  const stored = window.localStorage.getItem(SHOW_RIR_KEY);
+  if (stored === null) {
+    return false;
+  }
+  return stored === "true";
+}
+
 export function setShowTimer(nextValue: boolean) {
   window.localStorage.setItem(SHOW_TIMER_KEY, String(nextValue));
+}
+
+export function setShowSession(nextValue: boolean) {
+  window.localStorage.setItem(SHOW_SESSION_KEY, String(nextValue));
+}
+
+export function setShowRir(nextValue: boolean) {
+  window.localStorage.setItem(SHOW_RIR_KEY, String(nextValue));
 }
 
 export function getSchedule(): Record<Weekday, DaySchedule> {
   const stored = window.localStorage.getItem(WEEKLY_SCHEDULE_KEY);
   if (!stored) {
-    return { ...defaultSchedule };
+    const seeded = { ...defaultSchedule };
+    let hasChanges = false;
+    (Object.keys(seeded) as Weekday[]).forEach((day) => {
+      const type = seeded[day].type;
+      const defaults = getDefaultExercisesForType(type);
+      if (seeded[day].exercises.length === 0 && defaults.length > 0) {
+        seeded[day] = { ...seeded[day], exercises: defaults };
+        hasChanges = true;
+      }
+    });
+    if (hasChanges) {
+      saveSchedule(seeded);
+    }
+    return seeded;
   }
 
   try {
@@ -62,6 +101,18 @@ export function getSchedule(): Record<Weekday, DaySchedule> {
         };
       }
     });
+    let hasChanges = false;
+    (Object.keys(normalized) as Weekday[]).forEach((day) => {
+      const type = normalized[day].type;
+      const defaults = getDefaultExercisesForType(type);
+      if (normalized[day].exercises.length === 0 && defaults.length > 0) {
+        normalized[day] = { ...normalized[day], exercises: defaults };
+        hasChanges = true;
+      }
+    });
+    if (hasChanges) {
+      saveSchedule(normalized);
+    }
     return normalized;
   } catch {
     return { ...defaultSchedule };

@@ -65,6 +65,36 @@ function buildStatusKey(exerciseName: string, date: string) {
   return `${exerciseName}__${date}`;
 }
 
+export function resetWorkoutProgressForDate(date: string) {
+  if (!isBrowser()) {
+    return;
+  }
+
+  const nextWorkouts = getWorkouts().filter((workout) => workout.date !== date);
+  window.localStorage.setItem(WORKOUTS_KEY, JSON.stringify(nextWorkouts));
+
+  const statusMap = getStatusMap();
+  const nextStatusMap: Record<string, StoredStatus> = {};
+  Object.entries(statusMap).forEach(([key, value]) => {
+    if (!key.endsWith(`__${date}`)) {
+      nextStatusMap[key] = value;
+    }
+  });
+  window.localStorage.setItem(STATUS_KEY, JSON.stringify(nextStatusMap));
+
+  const startMap = { ...getSessionStartMap() };
+  delete startMap[date];
+  window.localStorage.setItem(SESSION_START_KEY, JSON.stringify(startMap));
+
+  const activityMap = { ...getSessionLastActivityMap() };
+  delete activityMap[date];
+  window.localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, JSON.stringify(activityMap));
+
+  const durationMap = { ...getSessionDurationMap() };
+  delete durationMap[date];
+  window.localStorage.setItem(SESSION_DURATION_KEY, JSON.stringify(durationMap));
+}
+
 export function getExerciseStatus(exerciseName: string, date: string): StoredStatus | null {
   const map = getStatusMap();
   return map[buildStatusKey(exerciseName, date)] ?? null;

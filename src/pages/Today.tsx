@@ -1,19 +1,25 @@
+import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import FitnessCenterRoundedIcon from "@mui/icons-material/FitnessCenterRounded";
+import LocalFireDepartmentRoundedIcon from "@mui/icons-material/LocalFireDepartmentRounded";
 import {
   Box,
   Button,
+  ButtonBase,
   Chip,
   Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Fade,
+  Popover,
   Stack,
   Typography,
 } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import ExerciseCard from "../components/ExerciseCard";
@@ -27,11 +33,7 @@ import {
   endSession,
   getSetsForExerciseToday,
 } from "../utils/workouts";
-import {
-  getDefaultExercisesForType,
-  getShowTimer,
-  getTodaySchedule,
-} from "../utils/settings";
+import { getShowSession, getShowTimer, getTodaySchedule } from "../utils/settings";
 import { getExerciseLibrary } from "../utils/exerciseLibrary";
 
 function formatLockDate(date: Date) {
@@ -60,6 +62,14 @@ function formatSessionElapsed(totalMs: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function formatSessionStartTime(timestamp: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(timestamp));
+}
+
 function formatStopwatch(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -72,19 +82,25 @@ type ExerciseStatus = "done" | "in-progress" | "ready";
 
 const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000;
 const AUTO_END_DELAY_MS = 12 * 60 * 1000;
+const EXERCISE_INDEX_KEY = "today-exercise-index";
 
 function Today() {
   const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
   const [sessionStart, setSessionStart] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState<number | null>(null);
+  const [sessionDetailsAnchor, setSessionDetailsAnchor] = useState<HTMLElement | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryDurationMs, setSummaryDurationMs] = useState<number | null>(null);
+  const hasInitializedSelection = useRef(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [switchDialogOpen, setSwitchDialogOpen] = useState(false);
   const [pendingExerciseId, setPendingExerciseId] = useState<string | null>(null);
   const [stopwatchRunning, setStopwatchRunning] = useState(false);
   const [stopwatchMs, setStopwatchMs] = useState(0);
   const [showCurrentSets, setShowCurrentSets] = useState(true);
+  const [showSession, setShowSession] = useState(() => getShowSession());
   const [showTimer, setShowTimer] = useState(() => getShowTimer());
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaySchedule = getTodaySchedule();
@@ -109,12 +125,9 @@ function Today() {
 
     const library = getExerciseLibrary();
     const available = library.filter((exercise) => exercise.type === todaySchedule.type);
-    const fallbackIds = getDefaultExercisesForType(todaySchedule.type);
-    const selectedIds =
-      todaySchedule.exercises.length > 0 ? todaySchedule.exercises : fallbackIds;
+    const selectedIds = todaySchedule.exercises;
     const selected = available.filter((exercise) => selectedIds.includes(exercise.id));
-    const finalSelection =
-      selected.length > 0 ? selected : available.slice(0, Math.min(2, available.length));
+    const finalSelection = selected;
 
     return finalSelection.map((exercise) => {
       const savedStatus = getExerciseStatus(exercise.name, todayKey);
@@ -136,6 +149,50 @@ function Today() {
       };
     });
   }, [todaySchedule, todayKey]);
+
+  const sessionExercises = items.filter((item) => item.setsToday.length > 0);
+  const totalSessionSets = sessionExercises.reduce(
+    (total, item) => total + item.setsToday.length,
+    0,
+  );
+  const sessionDetailsOpen = Boolean(sessionDetailsAnchor);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      return;
+    }
+    if (!hasInitializedSelection.current) {
+      const inProgressIndex = items.findIndex((item) => item.status === "in-progress");
+      if (inProgressIndex >= 0) {
+        setExerciseIndex(inProgressIndex);
+        window.localStorage.setItem(EXERCISE_INDEX_KEY, String(inProgressIndex));
+        hasInitializedSelection.current = true;
+        return;
+      }
+
+      const storedIndex = Number(window.localStorage.getItem(EXERCISE_INDEX_KEY));
+      if (!Number.isNaN(storedIndex) && storedIndex >= 0) {
+        setExerciseIndex(storedIndex % items.length);
+        hasInitializedSelection.current = true;
+        return;
+      }
+
+      setExerciseIndex(0);
+      hasInitializedSelection.current = true;
+      return;
+    }
+
+    if (exerciseIndex >= items.length) {
+      setExerciseIndex(0);
+    }
+  }, [items, exerciseIndex]);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      return;
+    }
+    window.localStorage.setItem(EXERCISE_INDEX_KEY, String(exerciseIndex % items.length));
+  }, [exerciseIndex, items.length]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -179,6 +236,14 @@ function Today() {
     setLastActivity(null);
   };
 
+  const handleOpenSessionDetails = (event: React.MouseEvent<HTMLElement>) => {
+    setSessionDetailsAnchor(event.currentTarget);
+  };
+
+  const handleCloseSessionDetails = () => {
+    setSessionDetailsAnchor(null);
+  };
+
   useEffect(() => {
     if (!stopwatchRunning) {
       return undefined;
@@ -191,6 +256,9 @@ function Today() {
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
+      if (event.key === "showSession") {
+        setShowSession(getShowSession());
+      }
       if (event.key === "showTimer") {
         setShowTimer(getShowTimer());
       }
@@ -253,6 +321,7 @@ function Today() {
   const activeStatus: ExerciseStatus = activeExercise?.status ?? "ready";
   const completedCount = items.filter((item) => item.status === "done").length;
   const totalCount = items.length;
+  const isWorkoutComplete = totalCount > 0 && completedCount === totalCount;
   const progressRatio = totalCount > 0 ? completedCount / totalCount : 0;
   const progressColor =
     completedCount === 0
@@ -293,6 +362,24 @@ function Today() {
     });
     setPendingExerciseId(null);
     setSwitchDialogOpen(false);
+  };
+
+  const handleOpenSummary = () => {
+    const finalDurationMs = sessionStart
+      ? now.getTime() - sessionStart
+      : summaryDurationMs ?? sessionElapsedMs;
+    setSummaryDurationMs(finalDurationMs);
+    if (sessionStart) {
+      endSession(todayKey, now.getTime());
+      setSessionStart(null);
+      setLastActivity(null);
+    }
+    setSessionDetailsAnchor(null);
+    setSummaryOpen(true);
+  };
+
+  const handleCloseSummary = () => {
+    setSummaryOpen(false);
   };
 
   return (
@@ -343,7 +430,7 @@ function Today() {
                   {formatLockSeconds(now)}
                 </Box>
               </Typography>
-              {sessionStart ? (
+              {showSession && sessionStart ? (
                 <Box
                   sx={{
                     mt: 0.5,
@@ -355,9 +442,20 @@ function Today() {
                     color: "#a1a1aa",
                   }}
                 >
-                  <Typography sx={{ fontSize: "inherit", color: "inherit" }}>
-                    Session {formatSessionElapsed(sessionElapsedMs)}
-                  </Typography>
+                  <ButtonBase
+                    onClick={handleOpenSessionDetails}
+                    sx={{
+                      borderRadius: "8px",
+                      px: 0.4,
+                      ml: -0.4,
+                      color: "inherit",
+                      "&:hover": { color: "#d4d4d8" },
+                    }}
+                  >
+                    <Typography sx={{ fontSize: "inherit", color: "inherit" }}>
+                      Session {formatSessionElapsed(sessionElapsedMs)}
+                    </Typography>
+                  </ButtonBase>
                   {showInactivityPrompt ? (
                     <>
                       <Typography sx={{ fontSize: "inherit", color: "inherit" }}>•</Typography>
@@ -410,7 +508,7 @@ function Today() {
               variant="h1"
               sx={{
                 mt: 2,
-                fontSize: "clamp(28px, 6vw, 40px)",
+                fontSize: "30px",
                 lineHeight: 1.15,
                 display: "-webkit-box",
                 WebkitLineClamp: 2,
@@ -429,8 +527,8 @@ function Today() {
                 flex: "0 0 38%",
                 maxWidth: "38%",
                 borderRadius: "20px",
-                px: 1.2,
-                py: 1.1,
+                px: 1,
+                py: 1,
                 background:
                   "linear-gradient(180deg, rgba(12,16,20,0.9) 0%, rgba(8,10,12,0.95) 100%)",
                 border: "1px solid rgba(255,255,255,0.08)",
@@ -439,12 +537,14 @@ function Today() {
                   : "none",
                 display: "flex",
                 flexDirection: "column",
-                justifyContent: "space-between",
+                alignItems: "center",
+                justifyContent: "center",
                 minHeight: 120,
-                ml: { xs: 5, sm: 5 },
+                textAlign: "center",
+                gap: 0.8,
               }}
             >
-              <Box>
+              <Box sx={{ width: "100%" }}>
                 <Typography
                   sx={{
                     fontSize: "0.72rem",
@@ -459,11 +559,14 @@ function Today() {
                 </Typography>
                 <Typography
                   sx={{
-                    mt: 0.6,
+                    mt: 0.4,
                     fontSize: { xs: "1.35rem", sm: "1.5rem" },
                     fontWeight: 800,
                     letterSpacing: "-0.04em",
                     fontVariantNumeric: "tabular-nums",
+                    textAlign: "center",
+                    width: "100%",
+                    transform: "translateY(-2px)",
                   }}
                 >
                   {formatStopwatch(stopwatchMs)}
@@ -481,7 +584,7 @@ function Today() {
                 }}
                 variant="contained"
                 sx={{
-                  mt: 1,
+                  mt: 0,
                   minHeight: 30,
                   borderRadius: "10px",
                   background: stopwatchRunning ? "rgba(255,255,255,0.12)" : "#f3f5f7",
@@ -499,6 +602,83 @@ function Today() {
             </Box>
           ) : null}
         </Stack>
+
+        {showSession ? (
+          <Popover
+            open={sessionDetailsOpen}
+            anchorEl={sessionDetailsAnchor}
+            onClose={handleCloseSessionDetails}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+            transformOrigin={{ vertical: "top", horizontal: "left" }}
+            disableAutoFocus
+            disableEnforceFocus
+            disableScrollLock
+            PaperProps={{
+              sx: {
+                mt: 0.8,
+                p: 1.6,
+                borderRadius: "16px",
+                background:
+                  "linear-gradient(180deg, rgba(20,24,29,0.98) 0%, rgba(14,17,20,0.98) 100%)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "#f8fafc",
+                maxWidth: 260,
+              },
+            }}
+          >
+            <Stack spacing={1.1}>
+              <Stack spacing={0.4}>
+                <Typography sx={{ fontSize: "0.75rem", color: "#a1a1aa" }}>
+                  Session started {sessionStart ? formatSessionStartTime(sessionStart) : ""}
+                </Typography>
+                <Typography sx={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                  Duration {formatSessionElapsed(sessionElapsedMs)}
+                </Typography>
+              </Stack>
+              <Box>
+                <Typography sx={{ fontSize: "0.75rem", color: "#a1a1aa", mb: 0.4 }}>
+                  Exercises
+                </Typography>
+                <Stack spacing={0.4}>
+                  {sessionExercises.length === 0 ? (
+                    <Typography sx={{ fontSize: "0.8rem", color: "#cbd5f5" }}>
+                      No sets logged yet.
+                    </Typography>
+                  ) : (
+                    sessionExercises.map((exercise) => (
+                      <Typography key={exercise.id} sx={{ fontSize: "0.8rem" }}>
+                        • {exercise.name}
+                      </Typography>
+                    ))
+                  )}
+                </Stack>
+              </Box>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography sx={{ fontSize: "0.8rem", color: "#cbd5f5" }}>
+                  Exercises: {sessionExercises.length}
+                </Typography>
+                <Typography sx={{ fontSize: "0.8rem", color: "#cbd5f5" }}>
+                  Sets: {totalSessionSets}
+                </Typography>
+              </Stack>
+              <Button
+                onClick={handleEndSession}
+                variant="contained"
+                sx={{
+                  mt: 0.2,
+                  borderRadius: "12px",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  background: "rgba(248,113,113,0.16)",
+                  color: "#fecaca",
+                  "&:hover": { background: "rgba(248,113,113,0.26)" },
+                }}
+              >
+                End Session
+              </Button>
+            </Stack>
+          </Popover>
+        ) : null}
       </Box>
 
       <Stack spacing={1.2}>
@@ -534,6 +714,30 @@ function Today() {
                   }}
                 />
               </Box>
+              {isWorkoutComplete ? (
+                <Stack direction="row" spacing={0.6} alignItems="center">
+                  <Typography sx={{ fontSize: "0.75rem", color: "#a1a1aa" }}>
+                    {completedCount} / {totalCount} ✓
+                  </Typography>
+                  <Typography sx={{ fontSize: "0.75rem", color: "#a1a1aa" }}>
+                    Workout complete
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={handleOpenSummary}
+                    sx={{
+                      p: 0,
+                      minWidth: "auto",
+                      fontSize: "0.75rem",
+                      textTransform: "none",
+                      color: "#e4e4e7",
+                      "&:hover": { background: "transparent", color: "#f4f4f5" },
+                    }}
+                  >
+                    View summary
+                  </Button>
+                </Stack>
+              ) : null}
             </Stack>
           </Stack>
         ) : null}
@@ -697,6 +901,115 @@ function Today() {
           </Box>
         </Collapse>
       </Stack>
+
+      <Dialog
+        open={summaryOpen}
+        onClose={handleCloseSummary}
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 200 }}
+        PaperProps={{
+          sx: {
+            borderRadius: "22px",
+            background: "rgba(17,20,24,0.96)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 18px 40px rgba(0,0,0,0.35)",
+            width: "min(90vw, 340px)",
+          },
+        }}
+      >
+        <DialogContent
+          sx={{
+            px: 3.5,
+            py: 3.5,
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            "@keyframes summaryIn": {
+              from: { opacity: 0, transform: "scale(0.96)" },
+              to: { opacity: 1, transform: "scale(1)" },
+            },
+            animation: "summaryIn 180ms ease-out",
+          }}
+        >
+          <Stack spacing={1.8} alignItems="center" textAlign="center">
+            <Typography
+              sx={{
+                fontSize: "1.7rem",
+                fontWeight: 800,
+                color: "#86efac",
+              }}
+            >
+              Workout Complete ✓
+            </Typography>
+
+            <Typography
+              sx={{
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                color: "rgba(134,239,172,0.75)",
+              }}
+            >
+              Lupet mo idol!
+            </Typography>
+
+            <Typography
+              sx={{
+                fontSize: "1.1rem",
+                fontWeight: 600,
+                color: "rgba(255,255,255,0.78)",
+              }}
+            >
+              {currentDay}
+            </Typography>
+
+            <Stack spacing={1.4} sx={{ width: "100%", mt: 0.6 }}>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                <AccessTimeRoundedIcon sx={{ color: "#a7f3d0" }} />
+                <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
+                  Duration {formatSessionElapsed(summaryDurationMs ?? sessionElapsedMs)}
+                </Typography>
+              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                <FitnessCenterRoundedIcon sx={{ color: "#a7f3d0" }} />
+                <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
+                  Exercises {completedCount} / {totalCount} ✓
+                </Typography>
+              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                <LocalFireDepartmentRoundedIcon sx={{ color: "#a7f3d0" }} />
+                <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
+                  Sets {totalSessionSets} ✓
+                </Typography>
+              </Stack>
+            </Stack>
+
+            <Button
+              onClick={handleCloseSummary}
+              variant="contained"
+              sx={{
+                mt: 1,
+                px: 4.5,
+                borderRadius: "16px",
+                textTransform: "none",
+                fontWeight: 800,
+                background: "#22c55e",
+                color: "#04120a",
+                boxShadow: "0 10px 20px rgba(34,197,94,0.35)",
+                "&:hover": {
+                  background: "#2dd46f",
+                },
+                "&:active": {
+                  transform: "scale(0.98)",
+                },
+                transition: "transform 120ms ease",
+              }}
+            >
+              Done
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={switchDialogOpen}

@@ -22,8 +22,13 @@ import { useNavigate } from "react-router-dom";
 
 import {
   getSchedule,
+  getDefaultExercisesForType,
+  getShowRir,
+  getShowSession,
   getShowTimer,
   saveSchedule,
+  setShowRir,
+  setShowSession,
   setShowTimer,
   weekdayOrder,
   workoutOptions,
@@ -31,10 +36,13 @@ import {
   type Weekday,
   type WorkoutType,
 } from "../utils/settings";
+import { resetWorkoutProgressForDate } from "../utils/workouts";
 import { getExerciseLibrary, type LibraryExercise } from "../utils/exerciseLibrary";
 
 function Settings() {
   const [showTimer, setShowTimerState] = useState(true);
+  const [showSession, setShowSessionState] = useState(true);
+  const [showRir, setShowRirState] = useState(false);
   const [schedule, setSchedule] = useState<Record<Weekday, DaySchedule>>(getSchedule);
   const [editDay, setEditDay] = useState<Weekday | null>(null);
   const [selectedExercises, setSelectedExercises] = useState<number[]>([]);
@@ -51,6 +59,8 @@ function Settings() {
 
   useEffect(() => {
     setShowTimerState(getShowTimer());
+    setShowSessionState(getShowSession());
+    setShowRirState(getShowRir());
     setLibrary(getExerciseLibrary());
   }, []);
 
@@ -59,16 +69,52 @@ function Settings() {
     setShowTimer(checked);
   };
 
+  const handleToggleSession = (
+    _event: React.ChangeEvent<HTMLInputElement>,
+    checked: boolean,
+  ) => {
+    setShowSessionState(checked);
+    setShowSession(checked);
+  };
+
+  const handleToggleRir = (_event: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    setShowRirState(checked);
+    setShowRir(checked);
+  };
+
   const handleScheduleChange = (day: Weekday, value: WorkoutType) => {
+    const prevType = schedule[day].type;
+    const defaults = workoutOptions
+      .find((option) => option.value === value)
+      ? getDefaultExercisesForType(value)
+      : [];
     const next = {
       ...schedule,
       [day]: {
         type: value,
-        exercises: [],
+        exercises: defaults,
       },
     };
     setSchedule(next);
     saveSchedule(next);
+
+    if (prevType !== value) {
+      const weekdayIndex = new Date().getDay();
+      const weekdayMap: Weekday[] = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+      ];
+      const todayKey = weekdayMap[weekdayIndex];
+      if (todayKey === day) {
+        resetWorkoutProgressForDate(new Date().toISOString().slice(0, 10));
+        window.localStorage.removeItem("today-exercise-index");
+      }
+    }
   };
 
   const handleOpenEdit = (day: Weekday) => {
@@ -147,6 +193,22 @@ function Settings() {
           />
           <Typography sx={{ color: "rgba(255,255,255,0.55)", fontSize: "0.85rem", ml: 0.5 }}>
             Display rest timer on the main screen
+          </Typography>
+          <FormControlLabel
+            control={<Switch checked={showSession} onChange={handleToggleSession} />}
+            label={<Typography sx={{ fontWeight: 600 }}>Show Session on Home</Typography>}
+            sx={{ alignItems: "flex-start", ml: 0, mt: 1 }}
+          />
+          <Typography sx={{ color: "rgba(255,255,255,0.55)", fontSize: "0.85rem", ml: 0.5 }}>
+            Display workout session duration on the home screen
+          </Typography>
+          <FormControlLabel
+            control={<Switch checked={showRir} onChange={handleToggleRir} />}
+            label={<Typography sx={{ fontWeight: 600 }}>Enable RIR (Reps in Reserve)</Typography>}
+            sx={{ alignItems: "flex-start", ml: 0, mt: 1 }}
+          />
+          <Typography sx={{ color: "rgba(255,255,255,0.55)", fontSize: "0.85rem", ml: 0.5 }}>
+            Track how many reps you had left in a set
           </Typography>
         </Stack>
       </Box>

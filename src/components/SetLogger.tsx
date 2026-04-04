@@ -20,6 +20,7 @@ type SetLoggerProps = {
   weight: number;
   reps: number;
   rir: number;
+  showRir: boolean;
   unit: "kg" | "lb";
   previousSets: LoggedSet[];
   onSetWeight: (value: number) => void;
@@ -101,6 +102,7 @@ function SetLogger({
   weight,
   reps,
   rir,
+  showRir,
   unit,
   previousSets,
   onSetWeight,
@@ -317,48 +319,50 @@ function SetLogger({
         onIncrease={() => onAdjustReps(1)}
       />
 
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2,
-          borderRadius: "24px",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.06)",
-        }}
-      >
-        <Typography sx={{ color: "rgba(255,255,255,0.58)", textAlign: "center" }}>
-          Reps in reserve (RIR)
-        </Typography>
-        <ToggleButtonGroup
-          exclusive
-          value={rir}
-          onChange={(_event, value) => {
-            if (value !== null) {
-              onSelectRir(value);
-            }
+      {showRir ? (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            borderRadius: "24px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
           }}
-          fullWidth
-          sx={{ mt: 1.5, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1 }}
         >
-          {[0, 1, 2, 3].map((value) => (
-            <ToggleButton
-              key={value}
-              value={value}
-              sx={{
-                borderRadius: "16px !important",
-                border: "1px solid rgba(255,255,255,0.08) !important",
-                color: "#f8fafc",
-                "&.Mui-selected": {
-                  background: "rgba(139,211,168,0.16)",
-                  color: "#8bd3a8",
-                },
-              }}
-            >
-              {value}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </Paper>
+          <Typography sx={{ color: "rgba(255,255,255,0.58)", textAlign: "center" }}>
+            Reps in reserve (RIR)
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            value={rir}
+            onChange={(_event, value) => {
+              if (value !== null) {
+                onSelectRir(value);
+              }
+            }}
+            fullWidth
+            sx={{ mt: 1.5, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1 }}
+          >
+            {[0, 1, 2, 3].map((value) => (
+              <ToggleButton
+                key={value}
+                value={value}
+                sx={{
+                  borderRadius: "16px !important",
+                  border: "1px solid rgba(255,255,255,0.08) !important",
+                  color: "#f8fafc",
+                  "&.Mui-selected": {
+                    background: "rgba(139,211,168,0.16)",
+                    color: "#8bd3a8",
+                  },
+                }}
+              >
+                {value}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </Paper>
+      ) : null}
 
       <Button
         variant="contained"

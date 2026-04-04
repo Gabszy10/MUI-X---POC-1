@@ -26,6 +26,7 @@ import {
   setPersonalRecord,
   type LoggedSet,
 } from "../utils/workouts";
+import { getShowRir } from "../utils/settings";
 
 function LogSet() {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ function LogSet() {
   const [weight, setWeight] = useState(exercise.defaultWeight);
   const [reps, setReps] = useState(exercise.defaultReps);
   const [rir, setRir] = useState(2);
+  const [showRir, setShowRir] = useState(() => getShowRir());
   const [unit, setUnit] = useState<"kg" | "lb">("kg");
   const [previousSets, setPreviousSets] = useState<LoggedSet[]>(() =>
     getSetsForExerciseToday(exercise.name),
@@ -63,6 +65,16 @@ function LogSet() {
     }
   }, [focus]);
 
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "showRir") {
+        setShowRir(getShowRir());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   const handleAdjustReps = (change: number) => {
     setReps((current) => Math.max(1, current + change));
   };
@@ -76,7 +88,9 @@ function LogSet() {
     if (nextCount >= 3 && getExerciseStatus(exercise.name, todayKey) !== "done") {
       setPendingSetCount(nextCount);
       setCompleteDialogOpen(true);
+      return;
     }
+    navigate("/");
   };
 
   const handleMarkPr = (date: string, setIndex: number) => {
@@ -87,6 +101,16 @@ function LogSet() {
     setExerciseStatus(exercise.name, todayKey, "done");
     setCompleteDialogOpen(false);
     navigate("/");
+  };
+
+  const handleCompleteDialogClose = (
+    _event: object,
+    reason?: "backdropClick" | "escapeKeyDown",
+  ) => {
+    if (reason === "backdropClick" || reason === "escapeKeyDown") {
+      return;
+    }
+    setCompleteDialogOpen(false);
   };
 
   const formatShortDate = (dateString: string) => {
@@ -122,6 +146,7 @@ function LogSet() {
         weight={weight}
         reps={reps}
         rir={rir}
+        showRir={showRir}
         unit={unit}
         previousSets={previousSets}
         onSetWeight={setWeight}
@@ -224,7 +249,8 @@ function LogSet() {
 
       <Dialog
         open={completeDialogOpen}
-        onClose={() => setCompleteDialogOpen(false)}
+        onClose={handleCompleteDialogClose}
+        disableEscapeKeyDown
         PaperProps={{
           sx: {
             background: "linear-gradient(180deg, rgba(28,32,36,0.98) 0%, rgba(16,19,23,0.98) 100%)",
@@ -244,7 +270,7 @@ function LogSet() {
         <DialogActions sx={{ px: 3, pb: 3 }}>
           <Button
             onClick={() => setCompleteDialogOpen(false)}
-            sx={{ color: "rgba(255,255,255,0.72)", textTransform: "none" }}
+            sx={{ color: "rgba(255,255,255,0.8)", textTransform: "none" }}
           >
             Continue
           </Button>
