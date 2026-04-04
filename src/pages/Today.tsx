@@ -1,9 +1,6 @@
-import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
-import FitnessCenterRoundedIcon from "@mui/icons-material/FitnessCenterRounded";
-import LocalFireDepartmentRoundedIcon from "@mui/icons-material/LocalFireDepartmentRounded";
 import {
   Box,
   Button,
@@ -29,6 +26,7 @@ import {
   getPersonalRecord,
   getSessionStartTimestamp,
   getSessionLastActivityTimestamp,
+  getSessionDurationMs,
   setSessionLastActivityTimestamp,
   endSession,
   getSetsForExerciseToday,
@@ -89,6 +87,9 @@ function Today() {
   const [now, setNow] = useState(() => new Date());
   const [sessionStart, setSessionStart] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState<number | null>(null);
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionDurationMs, setSessionDurationMs] = useState(0);
+  const [finalSessionDurationMs, setFinalSessionDurationMs] = useState<number | null>(null);
   const [sessionDetailsAnchor, setSessionDetailsAnchor] = useState<HTMLElement | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -104,12 +105,18 @@ function Today() {
   const [showTimer, setShowTimer] = useState(() => getShowTimer());
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaySchedule = getTodaySchedule();
-  const sessionElapsedMs = sessionStart ? now.getTime() - sessionStart : 0;
+  const sessionElapsedMs = sessionActive
+    ? sessionDurationMs
+    : finalSessionDurationMs ?? sessionDurationMs;
   const inactivityMs = lastActivity ? now.getTime() - lastActivity : 0;
+  const sessionDisplayDurationMs = sessionActive
+    ? sessionDurationMs
+    : finalSessionDurationMs ?? null;
   const showInactivityPrompt =
-    Boolean(sessionStart && lastActivity) && inactivityMs >= INACTIVITY_THRESHOLD_MS;
+    Boolean(sessionActive && sessionStart && lastActivity) &&
+    inactivityMs >= INACTIVITY_THRESHOLD_MS;
   const shouldAutoEnd =
-    Boolean(sessionStart && lastActivity) &&
+    Boolean(sessionActive && sessionStart && lastActivity) &&
     inactivityMs >= INACTIVITY_THRESHOLD_MS + AUTO_END_DELAY_MS;
   const items = useMemo(() => {
     if (!todaySchedule) {
@@ -202,16 +209,26 @@ function Today() {
       if (nextStart !== sessionStart) {
         setSessionStart(nextStart);
       }
+      setSessionActive(Boolean(nextStart));
+      if (nextStart) {
+        setSessionDurationMs(Math.max(0, nextNow.getTime() - nextStart));
+      }
+      const nextFinalDuration = getSessionDurationMs(todayKey);
+      if (nextFinalDuration !== finalSessionDurationMs) {
+        setFinalSessionDurationMs(nextFinalDuration);
+      }
       const nextActivity = getSessionLastActivityTimestamp(todayKey);
       if (nextActivity !== lastActivity) {
         setLastActivity(nextActivity);
       }
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [todayKey, sessionStart, lastActivity]);
+  }, [todayKey, sessionStart, lastActivity, finalSessionDurationMs]);
 
   useEffect(() => {
     setSessionStart(getSessionStartTimestamp(todayKey));
+    setSessionActive(Boolean(getSessionStartTimestamp(todayKey)));
+    setFinalSessionDurationMs(getSessionDurationMs(todayKey));
     setLastActivity(getSessionLastActivityTimestamp(todayKey));
   }, [todayKey]);
 
@@ -219,21 +236,34 @@ function Today() {
     if (!shouldAutoEnd) {
       return;
     }
+    const finalDuration = sessionStart
+      ? Math.max(0, now.getTime() - sessionStart)
+      : sessionDurationMs;
     endSession(todayKey, now.getTime());
     setSessionStart(null);
     setLastActivity(null);
-  }, [shouldAutoEnd, todayKey, now]);
+    setSessionActive(false);
+    setFinalSessionDurationMs(finalDuration);
+  }, [shouldAutoEnd, todayKey, now, sessionStart, sessionDurationMs]);
 
   const handleContinueSession = () => {
     const next = Date.now();
     setSessionLastActivityTimestamp(todayKey, next);
     setLastActivity(next);
+    if (!sessionActive && sessionStart) {
+      setSessionActive(true);
+    }
   };
 
   const handleEndSession = () => {
+    const finalDuration = sessionStart
+      ? Math.max(0, Date.now() - sessionStart)
+      : sessionDurationMs;
     endSession(todayKey, Date.now());
     setSessionStart(null);
     setLastActivity(null);
+    setSessionActive(false);
+    setFinalSessionDurationMs(finalDuration);
   };
 
   const handleOpenSessionDetails = (event: React.MouseEvent<HTMLElement>) => {
@@ -365,14 +395,16 @@ function Today() {
   };
 
   const handleOpenSummary = () => {
-    const finalDurationMs = sessionStart
-      ? now.getTime() - sessionStart
-      : summaryDurationMs ?? sessionElapsedMs;
+    const finalDurationMs = sessionActive
+      ? sessionDurationMs
+      : finalSessionDurationMs ?? sessionDurationMs;
     setSummaryDurationMs(finalDurationMs);
-    if (sessionStart) {
+    if (sessionActive && sessionStart) {
       endSession(todayKey, now.getTime());
       setSessionStart(null);
       setLastActivity(null);
+      setSessionActive(false);
+      setFinalSessionDurationMs(finalDurationMs);
     }
     setSessionDetailsAnchor(null);
     setSummaryOpen(true);
@@ -430,7 +462,7 @@ function Today() {
                   {formatLockSeconds(now)}
                 </Box>
               </Typography>
-              {showSession && sessionStart ? (
+              {showSession ? (
                 <Box
                   sx={{
                     mt: 0.5,
@@ -442,20 +474,36 @@ function Today() {
                     color: "#a1a1aa",
                   }}
                 >
-                  <ButtonBase
-                    onClick={handleOpenSessionDetails}
-                    sx={{
-                      borderRadius: "8px",
-                      px: 0.4,
-                      ml: -0.4,
-                      color: "inherit",
-                      "&:hover": { color: "#d4d4d8" },
-                    }}
-                  >
+                  {sessionActive ? (
+                    <ButtonBase
+                      onClick={handleOpenSessionDetails}
+                      sx={{
+                        borderRadius: "8px",
+                        px: 0.4,
+                        ml: -0.4,
+                        color: "inherit",
+                        "&:hover": { color: "#d4d4d8" },
+                      }}
+                    >
+                      <Typography sx={{ fontSize: "inherit", color: "inherit" }}>
+                        Session {formatSessionElapsed(sessionElapsedMs)}
+                      </Typography>
+                    </ButtonBase>
+                  ) : sessionDisplayDurationMs !== null ? (
                     <Typography sx={{ fontSize: "inherit", color: "inherit" }}>
-                      Session {formatSessionElapsed(sessionElapsedMs)}
+                      Session {formatSessionElapsed(sessionDisplayDurationMs)}
+                      <Box component="span" sx={{ opacity: 0.7 }}>
+                        {" "}• Ended
+                      </Box>
                     </Typography>
-                  </ButtonBase>
+                  ) : (
+                    <Typography sx={{ fontSize: "inherit", color: "inherit" }}>
+                      Session
+                      <Box component="span" sx={{ opacity: 0.7 }}>
+                        {" "}• Ready
+                      </Box>
+                    </Typography>
+                  )}
                   {showInactivityPrompt ? (
                     <>
                       <Typography sx={{ fontSize: "inherit", color: "inherit" }}>•</Typography>
@@ -603,7 +651,7 @@ function Today() {
           ) : null}
         </Stack>
 
-        {showSession ? (
+        {showSession && sessionActive ? (
           <Popover
             open={sessionDetailsOpen}
             anchorEl={sessionDetailsAnchor}
@@ -909,100 +957,159 @@ function Today() {
         TransitionProps={{ timeout: 200 }}
         PaperProps={{
           sx: {
-            borderRadius: "22px",
-            background: "rgba(17,20,24,0.96)",
+            borderRadius: "24px",
+            background:
+              "radial-gradient(160px 160px at 50% 35%, rgba(255,255,255,0.06), rgba(255,255,255,0) 20%), linear-gradient(180deg, rgba(13,16,19,0.98) 50%, rgba(9,11,14,0.98) 90%)",
             border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 18px 40px rgba(0,0,0,0.35)",
+            boxShadow: "0 20px 50px rgba(0,0,0,0.4)",
             width: "min(90vw, 340px)",
+            backdropFilter: "blur(12px)",
           },
         }}
       >
         <DialogContent
           sx={{
             px: 3.5,
-            py: 3.5,
+            py: 3.8,
             textAlign: "center",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
+            background:
+              "radial-gradient(120px 120px at 50% 120px, rgba(34,197,94,0.14), rgba(34,197,94,0) 70%)",
             "@keyframes summaryIn": {
               from: { opacity: 0, transform: "scale(0.96)" },
               to: { opacity: 1, transform: "scale(1)" },
             },
+            "@keyframes checkPulse": {
+              "0%": { boxShadow: "0 0 0 rgba(34,197,94,0)" },
+              "70%": { boxShadow: "0 0 10px rgba(34,197,94,0.3)" },
+              "100%": { boxShadow: "0 0 0 rgba(34,197,94,0)" },
+            },
+            "@keyframes checkPop": {
+              "0%": { transform: "scale(0.9)", opacity: 0.6 },
+              "60%": { transform: "scale(1.06)", opacity: 1 },
+              "100%": { transform: "scale(1)", opacity: 1 },
+            },
+            "@keyframes textIn": {
+              from: { opacity: 0, transform: "translateY(4px)" },
+              to: { opacity: 1, transform: "translateY(0)" },
+            },
             animation: "summaryIn 180ms ease-out",
           }}
         >
-          <Stack spacing={1.8} alignItems="center" textAlign="center">
+          <Stack spacing={1.6} alignItems="center" textAlign="center">
+            <Box
+              sx={{
+                width: 52,
+                height: 52,
+                borderRadius: "50%",
+                display: "grid",
+                placeItems: "center",
+                background: "rgba(34,197,94,0.18)",
+                color: "#86efac",
+                fontSize: "1.75rem",
+                fontWeight: 800,
+                boxShadow: "0 0 10px rgba(34,197,94,0.24)",
+                animation: "checkPop 220ms ease-out, checkPulse 1.8s ease-out 1",
+              }}
+            >
+              ✓
+            </Box>
+
             <Typography
               sx={{
-                fontSize: "1.7rem",
+                fontSize: "1.45rem",
                 fontWeight: 800,
                 color: "#86efac",
+                animation: "textIn 160ms ease-out",
+                animationDelay: "40ms",
+                animationFillMode: "both",
               }}
             >
-              Workout Complete ✓
+              Workout Complete
             </Typography>
 
             <Typography
               sx={{
-                fontSize: "0.95rem",
+                fontSize: "0.8rem",
                 fontWeight: 600,
-                color: "rgba(134,239,172,0.75)",
+                color: "rgba(134,239,172,0.6)",
+                animation: "textIn 160ms ease-out",
+                animationDelay: "80ms",
+                animationFillMode: "both",
               }}
             >
-              Lupet mo idol!
+              +1 Session Complete
             </Typography>
 
             <Typography
               sx={{
-                fontSize: "1.1rem",
+                fontSize: "1.05rem",
                 fontWeight: 600,
                 color: "rgba(255,255,255,0.78)",
+                animation: "textIn 160ms ease-out",
+                animationDelay: "120ms",
+                animationFillMode: "both",
               }}
             >
               {currentDay}
             </Typography>
 
-            <Stack spacing={1.4} sx={{ width: "100%", mt: 0.6 }}>
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                <AccessTimeRoundedIcon sx={{ color: "#a7f3d0" }} />
-                <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
-                  Duration {formatSessionElapsed(summaryDurationMs ?? sessionElapsedMs)}
-                </Typography>
-              </Stack>
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                <FitnessCenterRoundedIcon sx={{ color: "#a7f3d0" }} />
-                <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
-                  Exercises {completedCount} / {totalCount} ✓
-                </Typography>
-              </Stack>
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                <LocalFireDepartmentRoundedIcon sx={{ color: "#a7f3d0" }} />
-                <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
-                  Sets {totalSessionSets} ✓
-                </Typography>
-              </Stack>
+            <Stack
+              spacing={0.6}
+              alignItems="center"
+              sx={{
+                mt: 0.6,
+                animation: "textIn 180ms ease-out",
+                animationDelay: "160ms",
+                animationFillMode: "both",
+              }}
+            >
+              <Typography sx={{ fontSize: "2.3rem", fontWeight: 800 }}>
+                {formatSessionElapsed(summaryDurationMs ?? sessionElapsedMs)}
+              </Typography>
+              <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.55)" }}>
+                Duration
+              </Typography>
             </Stack>
+
+            <Typography
+              sx={{
+                fontSize: "0.9rem",
+                color: "rgba(255,255,255,0.65)",
+                animation: "textIn 160ms ease-out",
+                animationDelay: "200ms",
+                animationFillMode: "both",
+              }}
+            >
+              {totalCount} Exercises • {totalSessionSets} Sets
+            </Typography>
 
             <Button
               onClick={handleCloseSummary}
               variant="contained"
               sx={{
-                mt: 1,
+                mt: 1.2,
                 px: 4.5,
                 borderRadius: "16px",
                 textTransform: "none",
                 fontWeight: 800,
-                background: "#22c55e",
+                background: "#1fb256",
                 color: "#04120a",
-                boxShadow: "0 10px 20px rgba(34,197,94,0.35)",
+                boxShadow: "0 6px 14px rgba(34,197,94,0.24)",
                 "&:hover": {
-                  background: "#2dd46f",
+                  background: "#24c063",
+                  transform: "scale(1.02)",
+                  boxShadow: "0 8px 18px rgba(34,197,94,0.28)",
                 },
                 "&:active": {
                   transform: "scale(0.98)",
                 },
                 transition: "transform 120ms ease",
+                animation: "textIn 160ms ease-out",
+                animationDelay: "240ms",
+                animationFillMode: "both",
               }}
             >
               Done
